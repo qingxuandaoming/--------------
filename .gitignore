@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Environments
+.env
+.env.*
+.venv/
+venv/
+env/
+
+# Packaging / Build
+build/
+dist/
+downloads/
+.eggs/
+*.egg-info/
+*.egg
+pip-wheel-metadata/
+
+
+# Logs and Cache
+*.log
+.cache/
+
+# IDE / Editors
+.idea/
+.vscode/*
+!.vscode/settings.json
+*.code-workspace
+
+# OS-specific
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+~*
