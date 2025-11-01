@@ -1,0 +1,33 @@
+[project]
+name = "real_time_voice_processing"
+version = "1.0.0"
+description = "实时语音信号处理系统课程设计"
+readme = "real_time_voice_processing/README.md"
+requires-python = ">=3.10,<3.11"
+authors = [{ name = "Course Project" }]
+dependencies = [
+  "numpy==1.26.4",
+  "scipy==1.12.0",
+  "pyqtgraph==0.13.3",
+  "PyQt5==5.15.9",
+  "PyAudio==0.2.14",
+  "matplotlib==3.8.2",
+  "soundfile==0.12.1",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.flake8]
+max-line-length = 100
+extend-exclude = ["__pycache__", ".venv", "build", "dist"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+addopts = "-q"
+testpaths = ["tests"]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
