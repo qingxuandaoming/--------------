@@ -11,6 +11,16 @@ Config : type
     包含全部静态配置项的类。
 """
 
+# 安全导入 PyAudio 常量，未安装时回退到等效数值（paInt16=8）
+import os
+import logging
+
+try:
+    import pyaudio as _pyaudio  # type: ignore
+    _AUDIO_FORMAT_DEFAULT = _pyaudio.paInt16
+except Exception:
+    _AUDIO_FORMAT_DEFAULT = 8
+
 class Config:
     """
     系统配置类。
@@ -72,7 +82,7 @@ class Config:
     """
     
     # 音频参数
-    AUDIO_FORMAT = 1  # pyaudio.paInt16
+    AUDIO_FORMAT = _AUDIO_FORMAT_DEFAULT  # pyaudio.paInt16
     CHANNELS = 1
     SAMPLE_RATE = 16000  # 16kHz 语音处理标准采样率
     CHUNK_SIZE = 1024  # 每次读取的数据块大小
@@ -115,33 +125,128 @@ class Config:
     # 文件保存参数
     SAVE_DIRECTORY = '.'  # 保存目录
     
+    # 日志配置
+    LOG_LEVEL = 'INFO'
+    LOG_FORMAT = '[%(asctime)s] %(levelname)s %(name)s: %(message)s'
+    LOG_DATEFMT = '%H:%M:%S'
+    
     @staticmethod
-    def print_config():
+    def setup_logging() -> None:
         """
-        打印关键配置信息到标准输出。
+        初始化标准日志配置。
 
         Returns
         -------
         None
         """
-        print("=" * 50)
-        print("实时语音信号处理系统 - 配置信息")
-        print("=" * 50)
-        print(f"音频格式: {Config.AUDIO_FORMAT} (paInt16)")
-        print(f"声道数: {Config.CHANNELS}")
-        print(f"采样率: {Config.SAMPLE_RATE} Hz")
-        print(f"块大小: {Config.CHUNK_SIZE}")
-        print(f"帧长: {Config.FRAME_SIZE} 样本点 ({Config.FRAME_DURATION}ms)")
-        print(f"帧移: {Config.HOP_SIZE} 样本点")
-        print(f"窗函数: {Config.WINDOW_TYPE}")
-        print(f"预加重系数: {Config.PREEMPHASIS_ALPHA}")
-        print(f"MFCC: num={Config.NUM_MFCC}, n_fft={Config.MFCC_N_FFT}, mel_filters={Config.MEL_FILTERS}, lifter={Config.MFCC_LIFTER}")
-        print(f"谱熵 FFT 点数: {Config.SPECTRAL_ENTROPY_N_FFT}")
-        print(f"能量阈值: {Config.ENERGY_THRESHOLD}")
-        print(f"过零率阈值: {Config.ZCR_THRESHOLD}")
-        print(f"自适应VAD: history_min={Config.ADAPTIVE_VAD_HISTORY_MIN}, energy_k={Config.ADAPTIVE_VAD_ENERGY_K}, zcr_k={Config.ADAPTIVE_VAD_ZCR_K}")
-        print("=" * 50)
+        level = getattr(logging, str(Config.LOG_LEVEL).upper(), logging.INFO)
+        logging.basicConfig(level=level, format=Config.LOG_FORMAT, datefmt=Config.LOG_DATEFMT)
+
+    @staticmethod
+    def print_config():
+        """
+        打印关键配置信息到标准日志。
+
+        Returns
+        -------
+        None
+        """
+        logging.info("%s", "=" * 50)
+        logging.info("实时语音信号处理系统 - 配置信息")
+        logging.info("%s", "=" * 50)
+        logging.info("音频格式: %s (paInt16)", Config.AUDIO_FORMAT)
+        logging.info("声道数: %d", Config.CHANNELS)
+        logging.info("采样率: %d Hz", Config.SAMPLE_RATE)
+        logging.info("块大小: %d", Config.CHUNK_SIZE)
+        logging.info("帧长: %d 样本点 (%dms)", Config.FRAME_SIZE, Config.FRAME_DURATION)
+        logging.info("帧移: %d 样本点", Config.HOP_SIZE)
+        logging.info("窗函数: %s", Config.WINDOW_TYPE)
+        logging.info("预加重系数: %.2f", Config.PREEMPHASIS_ALPHA)
+        logging.info(
+            "MFCC: num=%d, n_fft=%d, mel_filters=%d, lifter=%d",
+            Config.NUM_MFCC,
+            Config.MFCC_N_FFT,
+            Config.MEL_FILTERS,
+            Config.MFCC_LIFTER,
+        )
+        logging.info("谱熵 FFT 点数: %d", Config.SPECTRAL_ENTROPY_N_FFT)
+        logging.info("能量阈值: %.2f", Config.ENERGY_THRESHOLD)
+        logging.info("过零率阈值: %.3f", Config.ZCR_THRESHOLD)
+        logging.info(
+            "自适应VAD: history_min=%d, energy_k=%.2f, zcr_k=%.2f",
+            Config.ADAPTIVE_VAD_HISTORY_MIN,
+            Config.ADAPTIVE_VAD_ENERGY_K,
+            Config.ADAPTIVE_VAD_ZCR_K,
+        )
+
+    @staticmethod
+    def load_from_env(prefix: str = "RTP_") -> None:
+        """
+        从环境变量加载配置（覆盖同名项）。
+
+        环境变量命名约定：`<prefix><UPPER_NAME>`，例如 `RTP_SAMPLE_RATE`。
+
+        Returns
+        -------
+        None
+        """
+        for name, value in os.environ.items():
+            if not name.startswith(prefix):
+                continue
+            key = name[len(prefix) :]
+            if not hasattr(Config, key):
+                continue
+            current = getattr(Config, key)
+            try:
+                if isinstance(current, bool):
+                    casted = value.lower() in {"1", "true", "yes", "on"}
+                elif isinstance(current, int):
+                    casted = int(value)
+                elif isinstance(current, float):
+                    casted = float(value)
+                else:
+                    casted = value
+                setattr(Config, key, casted)
+            except Exception:
+                logging.warning("环境变量 %s=%s 转换失败，保持默认值", name, value)
+
+    @staticmethod
+    def load_from_yaml(path: str) -> bool:
+        """
+        从 YAML 文件加载配置（需安装 `pyyaml`）。
+
+        Parameters
+        ----------
+        path : str
+            YAML 配置路径。
+
+        Returns
+        -------
+        bool
+            是否加载成功。
+        """
+        try:
+            import yaml  # type: ignore
+        except Exception:
+            logging.warning("未安装 pyyaml，跳过 YAML 配置加载：%s", path)
+            return False
+
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+            if not isinstance(data, dict):
+                logging.warning("YAML 格式不正确（应为字典），忽略：%s", path)
+                return False
+            for key, value in data.items():
+                if hasattr(Config, key):
+                    setattr(Config, key, value)
+            logging.info("已从 YAML 加载配置：%s", path)
+            return True
+        except Exception as e:
+            logging.error("加载 YAML 配置失败：%s (%s)", path, e)
+            return False
 
 # 测试配置
 if __name__ == "__main__":
+    Config.setup_logging()
     Config.print_config()

@@ -3,12 +3,16 @@
 
 import time
 import threading
+import logging
 from collections import deque
 import numpy as np
-import pyaudio
 
 from real_time_voice_processing.config import Config
 from real_time_voice_processing.signal_processing import SignalProcessing
+from real_time_voice_processing.runtime.audio_source import AudioSource, PyAudioSource
+
+
+logger = logging.getLogger(__name__)
 
 
 class AudioRuntime:
@@ -55,12 +59,23 @@ class AudioRuntime:
         线程间共享数据的互斥锁。
     """
 
-    def __init__(self):
+    def __init__(self, audio_source: AudioSource | None = None):
         # 基本参数
         self.format = Config.AUDIO_FORMAT
-        self.channels = Config.CHANNELS
-        self.rate = Config.SAMPLE_RATE
         self.chunk = Config.CHUNK_SIZE
+
+        # 音频源（可注入实现）
+        if audio_source is None:
+            # 默认使用系统麦克风作为输入
+            audio_source = PyAudioSource(
+                sample_rate=Config.SAMPLE_RATE,
+                channels=Config.CHANNELS,
+                format_const=Config.AUDIO_FORMAT,
+                frames_per_buffer=Config.CHUNK_SIZE,
+            )
+        self.audio_source: AudioSource = audio_source
+        self.rate = getattr(audio_source, "sample_rate", Config.SAMPLE_RATE)
+        self.channels = getattr(audio_source, "channels", Config.CHANNELS)
         self.frame_size = Config.FRAME_SIZE
         self.hop_size = Config.HOP_SIZE
 
@@ -83,6 +98,7 @@ class AudioRuntime:
         self.audio_thread = None
         self.processing_thread = None
         self.lock = threading.Lock()
+        self.last_error = None  # 记录最近发生的异常，便于诊断
 
     def start(self):
         """
@@ -128,30 +144,29 @@ class AudioRuntime:
         -------
         None
         """
-        p = pyaudio.PyAudio()
-        stream = None
+        # 使用注入的音频源进行读取
+        stream_opened = False
         try:
-            stream = p.open(
-                format=self.format,
-                channels=self.channels,
-                rate=self.rate,
-                input=True,
-                frames_per_buffer=self.chunk,
-            )
+            self.audio_source.open()
+            stream_opened = True
             while self.is_running:
-                data = stream.read(self.chunk, exception_on_overflow=False)
-                audio_data = np.frombuffer(data, dtype=np.int16)
+                audio_data = self.audio_source.read(self.chunk)
+                if audio_data is None or len(audio_data) == 0:
+                    time.sleep(Config.THREAD_SLEEP_TIME)
+                    continue
                 with self.lock:
                     self.audio_buffer.append(audio_data)
-        except Exception:
-            pass
+        except Exception as e:
+            # 避免静默吞掉异常，记录并输出便于定位问题
+            self.last_error = e
+            logger.exception("音频采集线程异常: %s", e)
         finally:
             try:
-                if stream:
-                    stream.stop_stream()
-                    stream.close()
-            finally:
-                p.terminate()
+                if stream_opened:
+                    self.audio_source.close()
+            except Exception:
+                # 关闭异常不应影响退出
+                pass
 
     def _signal_processing_thread(self):
         """
