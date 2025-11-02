@@ -39,6 +39,7 @@
         "MFCC",
         "ndarray",
         "ndimage",
+        "noindex",
         "numpy",
         "operatorname",
         "Oppenheim",

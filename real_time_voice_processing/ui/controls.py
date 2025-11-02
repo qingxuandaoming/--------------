@@ -3,7 +3,7 @@
 
 """
 控件构建（ControlsMixin）
-=======================
+========================================
 
 该模块提供用于构建可视化界面控件与绘图区域的混入类。将 UI 控件的创建、布局、
 样式与信号连接集中在一个位置，便于与事件处理逻辑解耦。
@@ -40,32 +40,41 @@ class ControlsMixin:
         None
         """
         self.waveform_plot = self.win.addPlot(title="实时音频波形", row=0, col=0)
-        self.waveform_curve = self.waveform_plot.plot(pen=self.palette["PRIMARY"])
+        # 提升曲线质感：统一线宽并开启网格
+        self.waveform_curve = self.waveform_plot.plot(pen=pg.mkPen(self.palette["PRIMARY"], width=2))
         self.waveform_plot.setYRange(-32768, 32768)
         self.waveform_plot.setXRange(0, Config.WAVEFORM_DISPLAY_LENGTH)
         self.waveform_plot.setLabel("left", "幅度")
         self.waveform_plot.setLabel("bottom", "样本点")
+        self.waveform_plot.showGrid(x=True, y=True, alpha=0.15)
 
         self.energy_plot = self.win.addPlot(title="短时能量", row=1, col=0)
-        self.energy_curve = self.energy_plot.plot(pen=self.palette["GOLD"])
+        self.energy_curve = self.energy_plot.plot(pen=pg.mkPen(self.palette["GOLD"], width=2))
         self.energy_plot.setYRange(0, 1e10)
         self.energy_plot.setXRange(0, Config.MAX_DISPLAY_FRAMES)
         self.energy_plot.setLabel("left", "能量")
         self.energy_plot.setLabel("bottom", "帧数")
+        self.energy_plot.showGrid(x=True, y=True, alpha=0.15)
 
         self.zcr_plot = self.win.addPlot(title="过零率", row=2, col=0)
-        self.zcr_curve = self.zcr_plot.plot(pen=self.palette["ACCENT"])
+        self.zcr_curve = self.zcr_plot.plot(pen=pg.mkPen(self.palette["ACCENT"], width=2))
         self.zcr_plot.setYRange(0, 0.5)
         self.zcr_plot.setXRange(0, Config.MAX_DISPLAY_FRAMES)
         self.zcr_plot.setLabel("left", "过零率")
         self.zcr_plot.setLabel("bottom", "帧数")
+        self.zcr_plot.showGrid(x=True, y=True, alpha=0.15)
 
         self.vad_plot = self.win.addPlot(title="语音活动检测", row=3, col=0)
-        self.vad_curve = self.vad_plot.plot(pen=self.palette["BEIGE"], fillLevel=0, brush=QtGui.QColor(self.palette["BEIGE"]))
+        self.vad_curve = self.vad_plot.plot(
+            pen=pg.mkPen(self.palette["BEIGE"], width=2),
+            fillLevel=0,
+            brush=pg.mkBrush(QtGui.QColor(self.palette["BEIGE"]).lighter(110))
+        )
         self.vad_plot.setYRange(-0.1, 1.1)
         self.vad_plot.setXRange(0, Config.MAX_DISPLAY_FRAMES)
         self.vad_plot.setLabel("left", "语音存在")
         self.vad_plot.setLabel("bottom", "帧数")
+        self.vad_plot.showGrid(x=True, y=True, alpha=0.15)
 
         # 交互设置区域（选择音源与测试范围）
         self.settings_layout = QtWidgets.QVBoxLayout()
@@ -130,52 +139,54 @@ class ControlsMixin:
         
         # 完全禁用默认弹出机制
         self.file_combo.setMaxVisibleItems(0)
-        self.file_combo.setStyleSheet("""
-            QComboBox {
+        self.file_combo.setStyleSheet(f"""
+            QComboBox {{
                 combobox-popup: 0;
-                background-color: #2b2b2b;
-                border: 1px solid #555;
+                background-color: {self.palette['DARK']};
+                border: 1px solid {self.palette['GREEN']};
                 padding: 4px;
-                color: white;
-            }
-            QComboBox::drop-down {
+                color: {self.palette['FG']};
+                border-radius: 6px;
+            }}
+            QComboBox::drop-down {{
                 width: 20px;
                 border: none;
-            }
-            QComboBox::down-arrow {
+            }}
+            QComboBox::down-arrow {{
                  image: none;
                  border-left: 3px solid transparent;
                  border-right: 3px solid transparent;
-                 border-top: 6px solid white;
+                 border-top: 6px solid {self.palette['FG']};
                  width: 0px;
                  height: 0px;
                  margin-right: 8px;
-             }
-            QComboBox QAbstractItemView {
-                background-color: #2b2b2b;
-                color: white;
-                selection-background-color: #0078d4;
-            }
+             }}
+            QComboBox QAbstractItemView {{
+                background-color: {self.palette['DARK']};
+                color: {self.palette['FG']};
+                selection-background-color: {self.palette['ACCENT']};
+            }}
         """)
         
         # 创建自定义弹出按钮
         self.file_combo_btn = QtWidgets.QPushButton("▼")
         self.file_combo_btn.setFixedSize(24, 24)
         self.file_combo_btn.setEnabled(False)
-        self.file_combo_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #0078d4;
+        self.file_combo_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {self.palette['ACCENT']};
                 border: none;
                 color: white;
                 font-size: 10px;
-            }
-            QPushButton:hover {
-                background-color: #106ebe;
-            }
-            QPushButton:disabled {
+                border-radius: 6px;
+            }}
+            QPushButton:hover {{
+                background-color: {self.palette['PRIMARY']};
+            }}
+            QPushButton:disabled {{
                 background-color: #555;
                 color: #888;
-            }
+            }}
         """)
         
         # 创建弹出列表窗口（独立窗口，不受 QGraphicsProxyWidget 影响）
@@ -209,6 +220,11 @@ class ControlsMixin:
         self.auto_range_checkbox.setChecked(True)
         self.auto_range_checkbox.toggled.connect(self._on_auto_range_toggled)
         
+        # 主题切换（浅色/深色），默认深色
+        self.theme_toggle_checkbox = QtWidgets.QCheckBox("浅色主题")
+        self.theme_toggle_checkbox.setChecked(False)
+        self.theme_toggle_checkbox.toggled.connect(self._on_theme_toggled)
+        
         self.hint_label = QtWidgets.QLabel(
             "提示：可直接使用麦克风进行实时测试；也可指定文件或目录，并选择仅测试一个。"
         )
@@ -222,6 +238,7 @@ class ControlsMixin:
         options_row_layout.addWidget(self.simulate_rt_checkbox)
         options_row_layout.addWidget(self.auto_calibrate_checkbox)
         options_row_layout.addWidget(self.auto_range_checkbox)
+        options_row_layout.addWidget(self.theme_toggle_checkbox)
         options_row_layout.addStretch(1)
         self.settings_layout.addLayout(options_row_layout)
         self.settings_layout.addWidget(self.file_combo_container)  # 使用容器而不是直接的combo
@@ -275,3 +292,59 @@ class ControlsMixin:
         # 初始化默认目录文件列表与状态
         self._populate_default_dir_files()
         self._update_status()
+
+    def _apply_controls_palette(self) -> None:
+        """根据当前色板重应用下拉框与按钮等控件样式。"""
+        # QComboBox（容器内）
+        try:
+            self.file_combo.setStyleSheet(f"""
+                QComboBox {{
+                    combobox-popup: 0;
+                    background-color: {self.palette['DARK']};
+                    border: 1px solid {self.palette['GREEN']};
+                    padding: 4px;
+                    color: {self.palette['FG']};
+                    border-radius: 6px;
+                }}
+                QComboBox::drop-down {{
+                    width: 20px;
+                    border: none;
+                }}
+                QComboBox::down-arrow {{
+                     image: none;
+                     border-left: 3px solid transparent;
+                     border-right: 3px solid transparent;
+                     border-top: 6px solid {self.palette['FG']};
+                     width: 0px;
+                     height: 0px;
+                     margin-right: 8px;
+                 }}
+                QComboBox QAbstractItemView {{
+                    background-color: {self.palette['DARK']};
+                    color: {self.palette['FG']};
+                    selection-background-color: {self.palette['ACCENT']};
+                }}
+            """)
+        except Exception:
+            pass
+
+        # 下拉弹出按钮
+        try:
+            self.file_combo_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {self.palette['ACCENT']};
+                    border: none;
+                    color: white;
+                    font-size: 10px;
+                    border-radius: 6px;
+                }}
+                QPushButton:hover {{
+                    background-color: {self.palette['PRIMARY']};
+                }}
+                QPushButton:disabled {{
+                    background-color: #555;
+                    color: #888;
+                }}
+            """)
+        except Exception:
+            pass

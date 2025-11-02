@@ -70,9 +70,15 @@ class VisualizationUI(QtCore.QObject, ControlsMixin, EventHandlersMixin):
         # 应用到 pyqtgraph 全局配置
         pg.setConfigOption('background', self.palette["DARK"])
         pg.setConfigOption('foreground', self.palette["FG"])
+        pg.setConfigOptions(antialias=True)  # 抗锯齿，提升线条质量
 
         # 应用基础样式（按钮等）
         self.app.setStyleSheet(build_stylesheet(self.palette))
+        # 统一界面字体（Win 默认优先使用雅黑）
+        try:
+            self.app.setFont(QtGui.QFont("Microsoft YaHei UI", 10))
+        except Exception:
+            pass
 
         # 创建窗口并置顶
         self.win = pg.GraphicsLayoutWidget(show=False, title=title)
@@ -102,6 +108,8 @@ class VisualizationUI(QtCore.QObject, ControlsMixin, EventHandlersMixin):
 
         # 构建控件并启动定时刷新
         self._init_ui()
+        # 初始化统一轴样式
+        self._update_plot_theme()
         self._init_timer()
 
     def _calculate_optimal_range(self, data: np.ndarray, data_type: str) -> tuple[float, float]:
@@ -313,6 +321,51 @@ class VisualizationUI(QtCore.QObject, ControlsMixin, EventHandlersMixin):
         None
         """
         sys.exit(self.app.exec())
+
+    # ---------------------- 主题与样式应用 ----------------------
+    def _update_plot_theme(self) -> None:
+        """统一所有绘图的轴样式（颜色与字体）。
+
+        Returns
+        -------
+        None
+        """
+        try:
+            fg_pen = pg.mkPen(self.palette["FG"])
+            tick_font = QtGui.QFont("Microsoft YaHei UI", 10)
+            for plot in [self.waveform_plot, self.energy_plot, self.zcr_plot, self.vad_plot]:
+                for axis_name in ("left", "bottom"):
+                    axis = plot.getAxis(axis_name)
+                    axis.setPen(fg_pen)
+                    axis.setTextPen(fg_pen)
+                    axis.setStyle(tickFont=tick_font)
+        except Exception:
+            pass
+
+    def _apply_theme(self) -> None:
+        """应用当前 `self.palette` 到全局与控件，并刷新图表样式。"""
+        try:
+            pg.setConfigOption('background', self.palette["DARK"]) 
+            pg.setConfigOption('foreground', self.palette["FG"]) 
+            pg.setConfigOptions(antialias=True)
+            self.app.setStyleSheet(build_stylesheet(self.palette))
+            # 字体保持一致
+            try:
+                self.app.setFont(QtGui.QFont("Microsoft YaHei UI", 10))
+            except Exception:
+                pass
+            # 让控件样式跟随色板
+            if hasattr(self, '_apply_controls_palette'):
+                self._apply_controls_palette()
+            # 统一轴样式
+            self._update_plot_theme()
+            # 刷新窗口
+            try:
+                self.win.update()
+            except Exception:
+                pass
+        except Exception:
+            pass
 
     # 事件与控件构建由 mixin 提供：ControlsMixin 与 EventHandlersMixin
 

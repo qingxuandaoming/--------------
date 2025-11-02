@@ -3,7 +3,7 @@
 
 """
 事件处理（EventHandlersMixin）
-============================
+========================================
 
 该模块提供用于处理界面交互事件与控件状态更新的混入类。包含来源模式切换、
 测试范围切换、文件/目录选择、开始/停止/保存、自动坐标范围匹配开关、
@@ -22,6 +22,7 @@ import os
 import numpy as np
 from pyqtgraph.Qt import QtCore, QtGui, QtWidgets
 from real_time_voice_processing.config import Config
+from .styles import DEFAULT_PALETTE, LIGHT_PALETTE
 from real_time_voice_processing.runtime.audio_source import FileAudioSource, PlaylistAudioSource
 from .file_utils import default_audio_dir, collect_audio_files
 
@@ -369,12 +370,13 @@ class EventHandlersMixin:
         )
         self.file_list_popup.setModal(False)
         
-        # 设置弹出窗口样式
-        self.file_list_popup.setStyleSheet("""
-            QDialog {
-                background-color: #2b2b2b;
-                border: 1px solid #555;
-            }
+        # 设置弹出窗口样式（使用统一色板）
+        self.file_list_popup.setStyleSheet(f"""
+            QDialog {{
+                background-color: {self.palette['DARK']};
+                border: 1px solid {self.palette['GREEN']};
+                border-radius: 6px;
+            }}
         """)
         
         # 创建列表控件
@@ -382,23 +384,23 @@ class EventHandlersMixin:
         layout.setContentsMargins(0, 0, 0, 0)
         
         list_widget = QtWidgets.QListWidget()
-        list_widget.setStyleSheet("""
-            QListWidget {
-                background-color: #2b2b2b;
-                color: white;
+        list_widget.setStyleSheet(f"""
+            QListWidget {{
+                background-color: {self.palette['DARK']};
+                color: {self.palette['FG']};
                 border: none;
                 outline: none;
-            }
-            QListWidget::item {
+            }}
+            QListWidget::item {{
                 padding: 4px;
                 border-bottom: 1px solid #444;
-            }
-            QListWidget::item:hover {
-                background-color: #3c3c3c;
-            }
-            QListWidget::item:selected {
-                background-color: #0078d4;
-            }
+            }}
+            QListWidget::item:hover {{
+                background-color: {QtGui.QColor(self.palette['DARK']).lighter(110).name()};
+            }}
+            QListWidget::item:selected {{
+                background-color: {self.palette['ACCENT']};
+            }}
         """)
         
         # 填充列表项
@@ -465,9 +467,58 @@ class EventHandlersMixin:
         QtCore.QTimer.singleShot(100, install_filter)
         
     def eventFilter(self, obj, event):
-        """事件过滤器，用于处理弹出窗口的焦点丢失。"""
+        """处理文件列表弹出窗口的事件过滤。
+
+        当弹出窗口失去焦点时自动关闭，以避免界面残留。
+
+        Parameters
+        ----------
+        obj : QtCore.QObject
+            事件目标对象，预期为弹出窗口或其子对象。
+        event : QtCore.QEvent
+            传入的事件对象。
+
+        Returns
+        -------
+        bool
+            父类事件过滤处理的返回值。
+
+        Notes
+        -----
+        - 仅在 ``QtCore.QEvent.WindowDeactivate`` 事件类型时执行关闭逻辑。
+        - 其他事件均交由父类默认处理。
+        """
         if obj == self.file_list_popup and event.type() == QtCore.QEvent.WindowDeactivate:
             if self.file_list_popup is not None:
                 self.file_list_popup.close()
                 self.file_list_popup = None
         return super().eventFilter(obj, event)
+    def _on_theme_toggled(self, enabled: bool) -> None:
+        """主题切换（浅色/深色）。
+
+        Parameters
+        ----------
+        enabled : bool
+            True 为浅色主题，False 为默认深色主题。
+
+        Returns
+        -------
+        None
+        """
+        try:
+            self.palette = (LIGHT_PALETTE if enabled else DEFAULT_PALETTE).copy()
+        except Exception:
+            # 若色板不可用则忽略
+            return
+        # 让宿主应用主题（更新全局样式与图表轴样式）
+        if hasattr(self, '_apply_theme'):
+            try:
+                self._apply_theme()
+            except Exception:
+                pass
+        # 刷新控件状态
+        if hasattr(self, '_refresh_controls'):
+            try:
+                self._refresh_controls()
+            except Exception:
+                pass

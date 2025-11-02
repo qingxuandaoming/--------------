@@ -24,6 +24,17 @@ DEFAULT_PALETTE: Dict[str, str] = {
     "FG": "#E8EAED",        # 前景/文字
 }
 
+# 浅色主题配色（与默认色系保持一致，仅背景/文字反转）
+LIGHT_PALETTE: Dict[str, str] = {
+    "PRIMARY": "#0A4DAA",
+    "ACCENT": "#2EA3F2",
+    "GREEN": "#5F7865",
+    "GOLD": "#B8842D",
+    "BEIGE": "#EACCA8",
+    "DARK": "#FAFAFA",      # 作为浅色背景
+    "FG": "#202124",        # 深色文字
+}
+
 
 def build_stylesheet(palette: Dict[str, str]) -> str:
     """
@@ -57,10 +68,12 @@ def build_stylesheet(palette: Dict[str, str]) -> str:
     QLabel {{ color: {p['FG']}; }}
     QComboBox {{ background: {p['BEIGE']}; color: black; border-radius: 6px; padding: 4px; }}
     QComboBox:disabled {{ background: #C8C8C8; color: #666; }}
-    /* 明确单选按钮的选中/未选样式，提升可辨性 */
-    QRadioButton {{ color: {p['FG']}; }}
-    QRadioButton::indicator {{ width: 16px; height: 16px; }}
-    QRadioButton::indicator:unchecked {{ border: 2px solid {p['ACCENT']}; background: transparent; border-radius: 8px; }}
-    QRadioButton::indicator:checked {{ background: {p['ACCENT']}; border: 2px solid {p['ACCENT']}; border-radius: 8px; }}
-    QRadioButton:disabled {{ color: #8A8F99; }}
+    /* 单选与复选的统一视觉 */
+    QRadioButton, QCheckBox {{ color: {p['FG']}; }}
+    QRadioButton::indicator, QCheckBox::indicator {{ width: 16px; height: 16px; }}
+    QRadioButton::indicator:unchecked, QCheckBox::indicator:unchecked {{ border: 2px solid {p['ACCENT']}; background: transparent; border-radius: 8px; }}
+    QRadioButton::indicator:checked, QCheckBox::indicator:checked {{ background: {p['ACCENT']}; border: 2px solid {p['ACCENT']}; border-radius: 8px; }}
+    QRadioButton:disabled, QCheckBox:disabled {{ color: #8A8F99; }}
+    /* 提示框 */
+    QToolTip {{ color: black; background-color: {p['BEIGE']}; border: 1px solid {p['GOLD']}; padding: 4px; }}
     """
