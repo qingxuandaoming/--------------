@@ -27,7 +27,7 @@ Notes
 """
 
 
-class VisualizationUI:
+class VisualizationUI(QtCore.QObject):
     """
     可视化界面（VisualizationUI）。
 
@@ -58,6 +58,7 @@ class VisualizationUI:
         -------
         None
         """
+        super().__init__()  # 调用QObject的构造函数
         self.runtime = runtime
         self.app = QtWidgets.QApplication(sys.argv)
 
@@ -94,9 +95,185 @@ class VisualizationUI:
         self._selected_file_path: Optional[str] = None
         self._selected_dir_path: Optional[str] = None
         self._done_prompt_shown: bool = False
+        
+        # 自动坐标范围匹配相关状态
+        self._auto_range_enabled: bool = True
+        self._range_history = {
+            'energy': {'min': [], 'max': []},
+            'zcr': {'min': [], 'max': []},
+            'vad': {'min': [], 'max': []},
+            'audio': {'min': [], 'max': []}
+        }
+        self._range_buffer_size: int = 10  # 保持最近10次的范围数据用于平滑
 
         self._init_ui()
         self._init_timer()
+
+    def _calculate_optimal_range(self, data: np.ndarray, data_type: str) -> tuple[float, float]:
+        """计算数据的最优显示范围。
+        
+        Parameters
+        ----------
+        data : np.ndarray
+            输入数据数组
+        data_type : str
+            数据类型，可选值：'energy', 'zcr', 'vad', 'audio'
+            
+        Returns
+        -------
+        tuple[float, float]
+            最优的 (min_range, max_range)
+        """
+        if len(data) == 0:
+            # 返回默认范围
+            defaults = {
+                'energy': (0, 1e10),
+                'zcr': (0, 0.5),
+                'vad': (-0.1, 1.1),
+                'audio': (-32768, 32768)
+            }
+            return defaults.get(data_type, (0, 1))
+        
+        data_min = float(np.min(data))
+        data_max = float(np.max(data))
+        
+        # 更新历史记录
+        if data_type in self._range_history:
+            self._range_history[data_type]['min'].append(data_min)
+            self._range_history[data_type]['max'].append(data_max)
+            
+            # 保持缓冲区大小
+            if len(self._range_history[data_type]['min']) > self._range_buffer_size:
+                self._range_history[data_type]['min'].pop(0)
+                self._range_history[data_type]['max'].pop(0)
+            
+            # 使用历史数据计算平滑范围
+            hist_min = np.min(self._range_history[data_type]['min'])
+            hist_max = np.max(self._range_history[data_type]['max'])
+        else:
+            hist_min, hist_max = data_min, data_max
+        
+        # 根据数据类型调整范围策略
+        if data_type == 'energy':
+            # 能量数据：使用对数缩放思想，添加适当的上下边距
+            if hist_max > 0:
+                range_span = hist_max - hist_min
+                margin = max(range_span * 0.1, hist_max * 0.05)  # 10%范围边距或5%数值边距
+                min_range = max(0, hist_min - margin)  # 能量不能为负
+                max_range = hist_max + margin
+            else:
+                min_range, max_range = 0, 100
+                
+        elif data_type == 'zcr':
+            # 过零率：通常在0-1之间，添加小边距
+            range_span = hist_max - hist_min
+            margin = max(range_span * 0.1, 0.02)  # 10%范围边距或固定0.02边距
+            min_range = max(0, hist_min - margin)  # 过零率不能为负
+            max_range = min(1.0, hist_max + margin)  # 过零率不超过1
+            
+        elif data_type == 'vad':
+            # VAD：二值数据，保持固定范围但可微调
+            if hist_min >= 0 and hist_max <= 1:
+                min_range = -0.1  # 稍微低于0以便观察
+                max_range = 1.1   # 稍微高于1以便观察
+            else:
+                # 异常情况，使用数据范围
+                margin = max((hist_max - hist_min) * 0.1, 0.1)
+                min_range = hist_min - margin
+                max_range = hist_max + margin
+                
+        elif data_type == 'audio':
+            # 音频数据：根据实际幅度调整
+            range_span = hist_max - hist_min
+            margin = max(range_span * 0.1, max(abs(hist_min), abs(hist_max)) * 0.1)
+            min_range = hist_min - margin
+            max_range = hist_max + margin
+            
+        else:
+            # 默认策略
+            range_span = hist_max - hist_min
+            margin = range_span * 0.1 if range_span > 0 else 1
+            min_range = hist_min - margin
+            max_range = hist_max + margin
+        
+        return min_range, max_range
+
+    def _update_plot_ranges(self, recent_audio: np.ndarray, energies: np.ndarray, 
+                           zcrs: np.ndarray, vads: np.ndarray):
+        """更新所有图表的显示范围。
+        
+        Parameters
+        ----------
+        recent_audio : np.ndarray
+            最新音频数据
+        energies : np.ndarray
+            能量数据
+        zcrs : np.ndarray
+            过零率数据
+        vads : np.ndarray
+            VAD数据
+        """
+        if not self._auto_range_enabled:
+            return
+            
+        try:
+            # 更新音频波形范围
+            if len(recent_audio) > 0:
+                min_range, max_range = self._calculate_optimal_range(recent_audio, 'audio')
+                self.waveform_plot.setYRange(min_range, max_range, padding=0)
+            
+            # 更新能量范围
+            if len(energies) > 0:
+                min_range, max_range = self._calculate_optimal_range(energies, 'energy')
+                self.energy_plot.setYRange(min_range, max_range, padding=0)
+            
+            # 更新过零率范围
+            if len(zcrs) > 0:
+                min_range, max_range = self._calculate_optimal_range(zcrs, 'zcr')
+                self.zcr_plot.setYRange(min_range, max_range, padding=0)
+            
+            # 更新VAD范围
+            if len(vads) > 0:
+                min_range, max_range = self._calculate_optimal_range(vads, 'vad')
+                self.vad_plot.setYRange(min_range, max_range, padding=0)
+                
+        except Exception as e:
+            # 如果自动范围调整失败，记录错误但不中断程序
+            print(f"自动范围调整失败: {e}")
+
+    def _on_auto_range_toggled(self, enabled: bool):
+        """响应自动坐标范围匹配开关切换。
+        
+        Parameters
+        ----------
+        enabled : bool
+            是否启用自动坐标范围匹配
+        """
+        self._auto_range_enabled = enabled
+        
+        if not enabled:
+            # 禁用自动范围时，恢复到默认固定范围
+            self._reset_to_default_ranges()
+        else:
+            # 启用自动范围时，清空历史记录以重新开始
+            self._clear_range_history()
+
+    def _reset_to_default_ranges(self):
+        """重置所有图表到默认的固定坐标范围。"""
+        try:
+            # 恢复原始固定范围
+            self.waveform_plot.setYRange(-32768, 32768)
+            self.energy_plot.setYRange(0, 1e10)
+            self.zcr_plot.setYRange(0, 0.5)
+            self.vad_plot.setYRange(-0.1, 1.1)
+        except Exception as e:
+            print(f"重置默认范围失败: {e}")
+
+    def _clear_range_history(self):
+        """清空范围历史记录。"""
+        for data_type in self._range_history:
+            self._range_history[data_type]['min'].clear()
+            self._range_history[data_type]['max'].clear()
 
     def _init_ui(self):
         """初始化图形界面布局与绘图组件。
@@ -256,6 +433,12 @@ class VisualizationUI:
         # 说明文字与 EOF 自动停止（对文件/播放列表有效）
         self.auto_stop_checkbox = QtWidgets.QCheckBox("到达文件尾自动停止")
         self.auto_stop_checkbox.setChecked(True)
+        
+        # 自动坐标范围匹配开关
+        self.auto_range_checkbox = QtWidgets.QCheckBox("自动匹配坐标范围")
+        self.auto_range_checkbox.setChecked(True)
+        self.auto_range_checkbox.toggled.connect(self._on_auto_range_toggled)
+        
         self.hint_label = QtWidgets.QLabel(
             "提示：可直接使用麦克风进行实时测试；也可指定文件或目录，并选择仅测试一个。"
         )
@@ -264,6 +447,7 @@ class VisualizationUI:
         self.settings_layout.addLayout(choose_layout)
         self.settings_layout.addLayout(test_radio_layout)
         self.settings_layout.addWidget(self.auto_stop_checkbox)
+        self.settings_layout.addWidget(self.auto_range_checkbox)
         self.settings_layout.addWidget(self.file_combo_container)  # 使用容器而不是直接的combo
         self.settings_layout.addWidget(self.hint_label)
 
@@ -373,7 +557,7 @@ class VisualizationUI:
         """刷新绘图数据。
 
         从 `runtime` 获取最新音频与特征并更新曲线。包括：波形、短时能量、
-        过零率与 VAD。
+        过零率与 VAD。同时应用自动坐标范围匹配。
 
         Returns
         -------
@@ -381,10 +565,15 @@ class VisualizationUI:
         """
         try:
             recent_audio = self.runtime.get_recent_audio()
+            energies, zcrs, vads = self.runtime.get_recent_processed()
+            
+            # 应用自动坐标范围匹配
+            self._update_plot_ranges(recent_audio, energies, zcrs, vads)
+            
+            # 更新曲线数据
             if len(recent_audio) > 0:
                 self.waveform_curve.setData(recent_audio)
 
-            energies, zcrs, vads = self.runtime.get_recent_processed()
             if len(energies) > 0:
                 x_data = np.arange(len(energies))
                 self.energy_curve.setData(x_data, energies)
@@ -837,3 +1026,25 @@ class VisualizationUI:
                 self.file_list_popup.close()
                 self.file_list_popup = None
         return super().eventFilter(obj, event)
+
+
+if __name__ == '__main__':
+    """主入口点，启动可视化界面。"""
+    try:
+        from real_time_voice_processing.runtime.engine import AudioRuntime
+        
+        # 创建运行时引擎
+        runtime = AudioRuntime()
+        
+        # 创建并显示可视化界面（VisualizationUI会自己创建QApplication）
+        ui = VisualizationUI(runtime)
+        # 窗口已经在构造函数中显示了，不需要再调用show()
+        
+        # 运行应用程序
+        sys.exit(ui.app.exec())
+        
+    except Exception as e:
+        print(f"启动失败: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
