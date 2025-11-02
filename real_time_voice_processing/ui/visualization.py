@@ -85,7 +85,10 @@ class VisualizationUI:
 
         self.ctrl_widget = QtWidgets.QWidget()
         self.ctrl_widget.setLayout(self.ctrl_layout)
-        self.win.addWidget(self.ctrl_widget, row=4, col=0)
+        # 在 GraphicsLayoutWidget 中嵌入 QWidget 需要使用 QGraphicsProxyWidget
+        proxy = QtWidgets.QGraphicsProxyWidget()
+        proxy.setWidget(self.ctrl_widget)
+        self.win.addItem(proxy, row=4, col=0)
 
     def _init_timer(self):
         """

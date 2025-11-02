@@ -3,9 +3,17 @@
 # 核心依赖
 pyaudio==0.2.14
 pyqtgraph==0.13.3
+# Qt 绑定（优先使用 PySide6，更稳定；保留 PyQt5 兼容）
+PySide6==6.7.2
 PyQt5==5.15.9
-numpy==1.26.4
-scipy==1.12.0
+
+# 根据 Python 版本选择兼容的 NumPy/SciPy
+numpy==1.26.4; python_version >= "3.10"
+numpy==1.24.4; python_version < "3.10"
+scipy==1.12.0; python_version >= "3.10"
+scipy==1.10.1; python_version < "3.10"
+
+audioread==3.0.0
 
 # 开发工具
 pytest==7.4.4

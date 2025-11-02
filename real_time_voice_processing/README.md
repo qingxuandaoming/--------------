@@ -113,7 +113,7 @@ pip install -r requirements.txt
 
 ```bash
 # 运行主程序
-python main.py
+python -m real_time_voice_processing.main
 
 # 运行单元测试
 pytest
@@ -121,6 +121,31 @@ pytest
 # 运行演示脚本
 python real_time_voice_processing/demo.py
 ```
+
+### 音频文件测试
+
+- 默认测试音频目录：`real_time_voice_processing/assets/audio_tests/`
+- 支持的格式：`wav`、`flac`、`ogg/oga`、`aiff/aif`、`mp3`、`m4a`、`aac`、`wma`
+- 启动时将进行交互式选择：
+- 指定路径（文件或目录）或自动扫描默认目录（默认自动）
+- 若选择目录，可选择测试全部文件或仅测试一个（默认全部）
+
+示例（PowerShell）：
+
+```powershell
+# 直接运行，按提示选择（默认自动扫描默认目录并测试全部）
+py -3.10 -m real_time_voice_processing.main
+
+# 也可通过环境变量直接指定
+$env:RTP_INPUT_FILE = (Resolve-Path .\real_time_voice_processing\assets\audio_tests\sample.wav)
+py -3.10 -m real_time_voice_processing.main
+
+# 指定目录，自动读取全部文件
+$env:RTP_INPUT_DIR = (Resolve-Path .\real_time_voice_processing\assets\audio_tests)
+py -3.10 -m real_time_voice_processing.main
+```
+
+注意：解码 `mp3/m4a/aac/wma` 等格式需要本地安装 FFmpeg 或 GStreamer（`audioread` 将自动调用其中之一）。若未安装，将仅能读取 `soundfile` 支持的格式（如 `wav`、`flac`）。
 
 ### 功能说明
 
@@ -169,6 +194,7 @@ $$
 ### 语音活动检测
 
 采用双门限检测算法：
+
 1. 第一级：能量检测，过滤掉低能量信号
 2. 第二级：过零率检测，进一步确认语音信号
 
@@ -204,6 +230,7 @@ pytest
 ```
 
 测试包括：
+
 - 窗函数生成测试
 - 短时能量计算测试
 - 过零率计算测试

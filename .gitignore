@@ -43,3 +43,6 @@ Desktop.ini
 *.temp
 *.bak
 ~*
+
+# Audio files
+real_time_voice_processing\assets\audio_tests\*.wav
