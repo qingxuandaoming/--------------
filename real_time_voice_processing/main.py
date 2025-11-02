@@ -6,7 +6,8 @@ import sys
 from typing import List
 from real_time_voice_processing.config import Config
 from real_time_voice_processing.runtime.engine import AudioRuntime
-from real_time_voice_processing.runtime.audio_source import FileAudioSource, PlaylistAudioSource, SUPPORTED_EXTENSIONS
+from real_time_voice_processing.runtime.audio_source import FileAudioSource, PlaylistAudioSource
+from real_time_voice_processing.ui.file_utils import default_audio_dir, collect_audio_files
 """
 注意：Qt 插件路径在部分 Windows 环境下可能未自动发现，导致
 "qt.qpa.plugin: Could not find the Qt platform plugin \"windows\"" 错误。
@@ -47,7 +48,7 @@ def main():
     if input_file:
         audio_source = FileAudioSource(input_file, sample_rate=Config.SAMPLE_RATE)
     elif input_dir:
-        files = _collect_audio_files(input_dir)
+        files = collect_audio_files(input_dir)
         if files:
             audio_source = PlaylistAudioSource(files, sample_rate=Config.SAMPLE_RATE)
     # 未设置环境变量时不进行终端交互，交互逻辑在 UI 中完成
@@ -63,51 +64,7 @@ def main():
     ui.run()
 
 
- 
-
-
-def _default_audio_dir() -> str:
-    """
-    获取默认测试音频目录。
-
-    Returns
-    -------
-    str
-        目录路径：`real_time_voice_processing/assets/audio_tests` 的绝对路径，
-        若目录不存在则会创建。
-    """
-    pkg_dir = os.path.dirname(os.path.abspath(__file__))
-    d = os.path.join(pkg_dir, "assets", "audio_tests")
-    os.makedirs(d, exist_ok=True)
-    return d
-
-
-def _collect_audio_files(directory: str) -> List[str]:
-    """
-    收集目标目录下支持的音频文件。
-
-    Parameters
-    ----------
-    directory : str
-        要扫描的目录路径。
-
-    Returns
-    -------
-    list[str]
-        按文件名排序的绝对路径列表，仅包含支持的扩展名。
-    """
-    exts = {e.lower() for e in SUPPORTED_EXTENSIONS}
-    files: List[str] = []
-    if not os.path.isdir(directory):
-        return files
-    for name in sorted(os.listdir(directory)):
-        path = os.path.join(directory, name)
-        if not os.path.isfile(path):
-            continue
-        _, ext = os.path.splitext(name)
-        if ext.lower() in exts:
-            files.append(path)
-    return files
+    
 
 
 def _interactive_choose_audio_source():
@@ -124,7 +81,7 @@ def _interactive_choose_audio_source():
         构造完成的音频源；若未找到可用文件则返回 `None`（使用麦克风）。
     """
     try:
-        default_dir = _default_audio_dir()
+        default_dir = default_audio_dir()
         print("\n[音频测试] 选择音频来源：")
         print("1) 自动扫描默认目录: ", default_dir)
         print("2) 指定路径（文件或目录）")
@@ -135,7 +92,7 @@ def _interactive_choose_audio_source():
         if choice == "2":
             path = input("请输入文件或目录路径: ").strip().strip('"')
             if os.path.isdir(path):
-                files = _collect_audio_files(path)
+                files = collect_audio_files(path)
                 if not files:
                     print("未在目录中找到支持的音频文件，回退到麦克风。")
                     return None
@@ -158,7 +115,7 @@ def _interactive_choose_audio_source():
                 print("路径无效，回退到默认目录自动扫描。")
 
         # 自动扫描默认目录
-        files = _collect_audio_files(default_dir)
+        files = collect_audio_files(default_dir)
         if not files:
             print("默认目录为空，未找到音频文件。将使用麦克风进行实时测试。")
             return None

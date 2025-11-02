@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import time
+import os
 import threading
 import logging
 from collections import deque
@@ -557,8 +558,15 @@ class AudioRuntime:
         """
         if directory is None:
             directory = Config.SAVE_DIRECTORY
+        # 确保保存目录存在
+        try:
+            os.makedirs(directory, exist_ok=True)
+        except Exception:
+            # 目录可能不可创建，直接抛出让上层处理
+            pass
+
         timestamp = time.strftime("%Y%m%d_%H%M%S")
-        filename = f"{directory}/voice_processing_data_{timestamp}.npz"
+        filename = os.path.join(directory, f"voice_processing_data_{timestamp}.npz")
         energies, zcrs, vads = self.get_recent_processed(max_display=Config.PROCESSED_DATA_BUFFER_SIZE)
         # 其他可选特征
         with self.lock:

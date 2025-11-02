@@ -104,7 +104,7 @@ class Config:
     # 语音活动检测参数
     # 固定阈值（与单元测试预期保持一致）：能量较高且 ZCR 低于阈值更可能为语音
     ENERGY_THRESHOLD = 1000       # 能量阈值（用于固定阈值VAD）
-    ZCR_THRESHOLD = 0.30          # 过零率上限阈值（zcr < 阈值 判定为语音）
+    ZCR_THRESHOLD = 0.25          # 过零率上限阈值（更保守）
     
     # 自适应 VAD 参数
     ADAPTIVE_VAD_HISTORY_MIN = 20
@@ -112,17 +112,18 @@ class Config:
     ADAPTIVE_VAD_ZCR_K = 1.0
     # 复合VAD门控与平滑
     USE_ADAPTIVE_VAD = True  # 开启自适应 VAD，使阈值随历史平滑调整
-    SPECTRAL_ENTROPY_VOICE_MAX = 0.55  # 谱熵低于该阈值更可能为语音
-    VAD_HANGOVER_ON = 2  # 进入语音后至少保持的帧数（减少粘连）
-    VAD_RELEASE_OFF = 2  # 退出语音需连续静音帧数
+    SPECTRAL_ENTROPY_VOICE_MAX = 0.45  # 更保守的谱熵上限
+    VAD_ATTACK_ON = 3       # 进入语音需连续满足判决的帧数（避免突发噪声）
+    VAD_HANGOVER_ON = 2     # 进入语音后至少保持的帧数（减少粘连）
+    VAD_RELEASE_OFF = 2     # 退出语音需连续静音帧数
 
     # 自动阈值校准（依据当前音频的响度与特征分布）
     AUTO_CALIBRATE_THRESHOLDS = True  # 运行开始后，使用首批帧自适应估计阈值
     CALIBRATION_FRAMES = 200  # 用于校准的帧数（20ms*200≈4s）
-    AUTO_ENERGY_PERCENTILE = 65  # 能量阈值采用分位数（越高越保守）
-    AUTO_ZCR_PERCENTILE = 45     # 过零率阈值采用分位数（用于 zcr<阈值）
-    AUTO_ENTROPY_PERCENTILE = 45 # 谱熵语音上限采用分位数（用于 entropy<阈值）
-    MIN_ENERGY_THRESHOLD = 1e6   # 自动校准得到的能量阈值下限（避免过低）
+    AUTO_ENERGY_PERCENTILE = 80  # 提高能量分位数，更保守
+    AUTO_ZCR_PERCENTILE = 35     # 降低 ZCR 分位数，更保守（zcr<阈值）
+    AUTO_ENTROPY_PERCENTILE = 35 # 降低谱熵上限分位数，更保守（entropy<阈值）
+    MIN_ENERGY_THRESHOLD = 1e-6  # 自动校准能量阈值的下限（防止被锁死过高）
     
     # 可视化参数
     PLOT_UPDATE_INTERVAL = 50  # 界面更新间隔（毫秒）
@@ -140,7 +141,7 @@ class Config:
     SIMULATE_REALTIME_FILES = False  # 关闭=快速处理；开启=按采样率节流读取
     
     # 文件保存参数
-    SAVE_DIRECTORY = '.'  # 保存目录
+    SAVE_DIRECTORY = 'data'  # 保存目录（项目根目录下 data/）
     # 播放速度：是否跟随原始采样率播放（处理仍按 SAMPLE_RATE）。
     PLAYBACK_FOLLOW_ORIGINAL_RATE = True
     

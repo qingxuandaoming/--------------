@@ -8,7 +8,9 @@ import numpy as np
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore, QtGui, QtWidgets
 from real_time_voice_processing.config import Config
-from real_time_voice_processing.runtime.audio_source import FileAudioSource, PlaylistAudioSource, SUPPORTED_EXTENSIONS
+from real_time_voice_processing.runtime.audio_source import FileAudioSource, PlaylistAudioSource
+from .styles import build_stylesheet, DEFAULT_PALETTE
+from .file_utils import default_audio_dir, collect_audio_files
 
 """UI for real-time voice processing visualization.
 
@@ -63,22 +65,14 @@ class VisualizationUI(QtCore.QObject):
         self.app = QtWidgets.QApplication(sys.argv)
 
         # 主题配色（与用户提供色板一致）
-        self.palette = {
-            "PRIMARY": "#0A4DAA",   # 深蓝
-            "ACCENT": "#2EA3F2",    # 亮蓝
-            "GREEN": "#5F7865",     # 灰绿
-            "GOLD": "#B8842D",      # 金黄
-            "BEIGE": "#EACCA8",     # 米色
-            "DARK": "#212C28",      # 深灰绿
-            "FG": "#E8EAED"         # 前景/文字
-        }
+        self.palette = DEFAULT_PALETTE.copy()
 
         # 应用到 pyqtgraph 全局配置
         pg.setConfigOption('background', self.palette["DARK"])
         pg.setConfigOption('foreground', self.palette["FG"])
 
         # 应用基础样式（按钮等）
-        self.app.setStyleSheet(self._build_stylesheet())
+        self.app.setStyleSheet(build_stylesheet(self.palette))
 
         # 创建窗口并置顶
         self.win = pg.GraphicsLayoutWidget(show=False, title=title)
@@ -632,83 +626,12 @@ class VisualizationUI(QtCore.QObject):
         sys.exit(self.app.exec_())
 
     # ---------------------- 逻辑与样式辅助 ----------------------
-    def _build_stylesheet(self) -> str:
-        """构建界面样式表。
-
-        Returns
-        -------
-        str
-            Qt 样式表字符串。
-        """
-        p = self.palette
-        return f"""
-        QWidget {{ color: {p['FG']}; }}
-        QGroupBox {{ border: 1px solid {p['GREEN']}; border-radius: 6px; margin-top: 6px; }}
-        QGroupBox::title {{ subcontrol-origin: margin; left: 10px; padding: 0 4px; color: {p['ACCENT']}; }}
-        QPushButton {{
-            background-color: {p['PRIMARY']};
-            color: white;
-            border: none;
-            border-radius: 6px;
-            padding: 8px 14px;
-        }}
-        QPushButton:hover {{ background-color: {p['ACCENT']}; }}
-        QPushButton#stop {{ background-color: {p['GREEN']}; }}
-        QPushButton#save {{ background-color: {p['GOLD']}; }}
-        QLabel {{ color: {p['FG']}; }}
-        QComboBox {{ background: {p['BEIGE']}; color: black; border-radius: 6px; padding: 4px; }}
-        QComboBox:disabled {{ background: #C8C8C8; color: #666; }}
-        /* 明确单选按钮的选中/未选样式，提升可辨性 */
-        QRadioButton {{ color: {p['FG']}; }}
-        QRadioButton::indicator {{ width: 16px; height: 16px; }}
-        QRadioButton::indicator:unchecked {{ border: 2px solid {p['ACCENT']}; background: transparent; border-radius: 8px; }}
-        QRadioButton::indicator:checked {{ background: {p['ACCENT']}; border: 2px solid {p['ACCENT']}; border-radius: 8px; }}
-        QRadioButton:disabled {{ color: #8A8F99; }}
-        """
-
-    def _default_audio_dir(self) -> str:
-        """获取默认音频目录路径。
-
-        Returns
-        -------
-        str
-            默认音频测试目录的绝对路径。
-        """
-        pkg_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        d = os.path.join(pkg_dir, "assets", "audio_tests")
-        os.makedirs(d, exist_ok=True)
-        return d
-
-    def _collect_audio_files(self, directory: str) -> list[str]:
-        """收集目录下支持的音频文件列表。
-
-        Parameters
-        ----------
-        directory : str
-            目标目录路径。
-
-        Returns
-        -------
-        list[str]
-            按文件名排序的音频文件绝对路径列表。
-        """
-        exts = {e.lower() for e in SUPPORTED_EXTENSIONS}
-        files: list[str] = []
-        if not os.path.isdir(directory):
-            return files
-        for name in sorted(os.listdir(directory)):
-            path = os.path.join(directory, name)
-            if not os.path.isfile(path):
-                continue
-            _, ext = os.path.splitext(name)
-            if ext.lower() in exts:
-                files.append(path)
-        return files
+    
 
     def _populate_default_dir_files(self):
         """填充默认目录的文件列表到下拉框。"""
-        d = self._default_audio_dir()
-        files = self._collect_audio_files(d)
+        d = default_audio_dir()
+        files = collect_audio_files(d)
         self.file_combo.clear()
         for f in files:
             self.file_combo.addItem(os.path.basename(f), f)
@@ -842,7 +765,7 @@ class VisualizationUI(QtCore.QObject):
     def _on_choose_file(self):
         """选择单个音频文件并更新内部状态。"""
         f, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self.win, "选择音频文件", self._default_audio_dir(),
+            self.win, "选择音频文件", default_audio_dir(),
             "音频文件 (*.wav *.flac *.ogg *.oga *.aiff *.aif *.mp3 *.m4a *.aac *.wma)"
         )
         if f:
@@ -853,11 +776,11 @@ class VisualizationUI(QtCore.QObject):
 
     def _on_choose_dir(self):
         """选择音频目录并填充文件列表。"""
-        d = QtWidgets.QFileDialog.getExistingDirectory(self.win, "选择测试目录", self._default_audio_dir())
+        d = QtWidgets.QFileDialog.getExistingDirectory(self.win, "选择测试目录", default_audio_dir())
         if d:
             self._selected_dir_path = d
             self._selected_file_path = None
-            files = self._collect_audio_files(d)
+            files = collect_audio_files(d)
             self.file_combo.clear()
             for f in files:
                 self.file_combo.addItem(os.path.basename(f), f)
@@ -870,8 +793,8 @@ class VisualizationUI(QtCore.QObject):
         if self.src_mic_radio.isChecked():
             src = None
         elif self.src_auto_radio.isChecked():
-            d = self._default_audio_dir()
-            files = self._collect_audio_files(d)
+            d = default_audio_dir()
+            files = collect_audio_files(d)
             if len(files) == 0:
                 QtWidgets.QMessageBox.warning(self.win, "提示", "默认目录为空，请选择“指定路径”或使用麦克风。")
                 return
@@ -897,7 +820,7 @@ class VisualizationUI(QtCore.QObject):
             if self._selected_file_path:
                 src = FileAudioSource(self._selected_file_path, sample_rate=Config.SAMPLE_RATE)
             elif self._selected_dir_path:
-                files = self._collect_audio_files(self._selected_dir_path)
+                files = collect_audio_files(self._selected_dir_path)
                 if len(files) == 0:
                     QtWidgets.QMessageBox.warning(self.win, "提示", "所选目录为空，请重新选择。")
                     return

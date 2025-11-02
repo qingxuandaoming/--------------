@@ -94,10 +94,15 @@ def adaptive_voice_activity_detection(
     energy_th = max(min_energy_threshold, alpha * hist_energy + (1 - alpha) * cur_energy_mean)
     zcr_th = min(max_zcr_threshold, alpha * hist_zcr + (1 - alpha) * cur_zcr_mean)
 
-    # 判定（与单元测试期望保持一致）：
-    # 能量高或 ZCR 明显高于阈值更可能为语音（OR 逻辑）。
-    # 为避免在静音/低ZCR场景下误报，ZCR 采用阈值加微小裕量比较。
-    energy_margin = 50.0  # 能量比较裕量，避免历史均值附近的误报
-    zcr_margin = 0.02     # ZCR 裕量（经验值），防止阈值附近抖动误报
-    vad = (energy > (energy_th + energy_margin)) | (zcr > (zcr_th + zcr_margin))
+    # 判定（稳健版）：
+    # 始终要求“能量门控”成立，再结合 ZCR 的双向判别：
+    #  - zcr < 阈值−裕量：典型有声段（voiced）
+    #  - zcr > 阈值＋裕量：典型无声擦音/摩擦音（unvoiced）但需能量足够
+    # 这样可避免在背景噪声（高ZCR但低能量）下的误报。
+    energy_margin = 50.0  # 能量裕量，抑制历史均值附近的抖动
+    zcr_margin = 0.02     # ZCR 裕量，抑制阈值附近的抖动
+    energy_gate = energy > (energy_th + energy_margin)
+    zcr_voiced = zcr < (zcr_th - zcr_margin)
+    zcr_unvoiced = zcr > (zcr_th + zcr_margin)
+    vad = energy_gate & (zcr_voiced | zcr_unvoiced)
     return vad.astype(bool)

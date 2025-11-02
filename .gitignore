@@ -21,6 +21,10 @@ downloads/
 pip-wheel-metadata/
 docs/_build/
 
+# Outputs
+data/
+voice_processing_data_*.npz
+
 
 # Logs and Cache
 *.log

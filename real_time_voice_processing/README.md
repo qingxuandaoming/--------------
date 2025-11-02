@@ -161,6 +161,23 @@ py -3.10 -m real_time_voice_processing.main
 - **算法参数**：能量阈值、过零率阈值等
 - **界面参数**：更新频率、显示范围等
 
+### 数据保存与清理
+
+- 处理数据默认保存到 `data/` 目录（由 `Config.SAVE_DIRECTORY` 控制）。
+- 可通过环境变量覆盖：`RTP_SAVE_DIRECTORY=./my_outputs`。
+- 仓库已忽略 `data/` 目录与 `voice_processing_data_*.npz` 文件，避免输出污染版本库。
+- 使用构建脚本清理输出：
+
+```powershell
+make clean
+```
+
+或在 Linux/macOS：
+
+```bash
+make clean
+```
+
 ## 算法原理
 
 ### 短时能量
@@ -281,7 +298,9 @@ pytest
 │   │   ├── frequency_features.py   # 频域特征（Mel、MFCC、谱熵）
 │   │   └── vad.py                  # 固定/自适应 VAD
 │   ├── ui/
-│   │   └── visualization.py        # 可视化界面与交互控件
+│   │   ├── visualization.py        # 可视化界面与交互控件
+│   │   ├── styles.py               # UI 样式工具（配色与样式表构建）
+│   │   └── file_utils.py           # 音频文件工具（默认目录与文件收集）
 │   ├── demo.py                     # 演示脚本
 │   └── analyze_file.py             # 单文件分析工具
 ├── scripts/

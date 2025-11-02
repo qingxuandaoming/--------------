@@ -86,4 +86,8 @@ format:
 # 清理项目文件（占位）
 clean:
 	@echo "清理项目文件..."
+	# 清理生成的 NPZ 数据文件（项目根与 data/ 目录）
+	$(PYTHON_EXEC) -c "import os,glob,shutil; [os.remove(f) for f in glob.glob('voice_processing_data_*.npz')]; shutil.rmtree('data', ignore_errors=True); os.makedirs('data', exist_ok=True)"
+	# 清理文档构建输出
+	$(PYTHON_EXEC) -c "import shutil; shutil.rmtree('docs/_build', ignore_errors=True)"
 	@echo "清理完成"
