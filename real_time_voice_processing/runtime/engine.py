@@ -9,7 +9,12 @@ import numpy as np
 
 from real_time_voice_processing.config import Config
 from real_time_voice_processing.signal_processing import SignalProcessing
-from real_time_voice_processing.runtime.audio_source import AudioSource, PyAudioSource
+from real_time_voice_processing.runtime.audio_source import (
+    AudioSource,
+    PyAudioSource,
+    FileAudioSource,
+    PlaylistAudioSource,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -204,6 +209,18 @@ class AudioRuntime:
                     self.audio_buffer.append(audio_data)
                     # 保留一份用于波形显示
                     self.audio_display_buffer.append(np.array(audio_data, copy=True))
+                # 模拟实时：对文件/播放列表按采样率节流
+                try:
+                    if Config.SIMULATE_REALTIME_FILES and isinstance(
+                        self.audio_source, (FileAudioSource, PlaylistAudioSource)
+                    ):
+                        # 每块持续时间 = 样本数 / 采样率
+                        block_seconds = float(len(audio_data)) / float(max(1, self.rate))
+                        if block_seconds > 0:
+                            time.sleep(block_seconds)
+                except Exception:
+                    # 节流失败不应影响主流程
+                    pass
         except Exception as e:
             # 避免静默吞掉异常，记录并输出便于定位问题
             self.last_error = e

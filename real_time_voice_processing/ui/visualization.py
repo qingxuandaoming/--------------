@@ -433,6 +433,10 @@ class VisualizationUI(QtCore.QObject):
         # 说明文字与 EOF 自动停止（对文件/播放列表有效）
         self.auto_stop_checkbox = QtWidgets.QCheckBox("到达文件尾自动停止")
         self.auto_stop_checkbox.setChecked(True)
+
+        # 模拟实时处理（文件）：开启后文件按采样率节流
+        self.simulate_rt_checkbox = QtWidgets.QCheckBox("模拟实时处理（文件）")
+        self.simulate_rt_checkbox.setChecked(False)
         
         # 自动坐标范围匹配开关
         self.auto_range_checkbox = QtWidgets.QCheckBox("自动匹配坐标范围")
@@ -447,6 +451,7 @@ class VisualizationUI(QtCore.QObject):
         self.settings_layout.addLayout(choose_layout)
         self.settings_layout.addLayout(test_radio_layout)
         self.settings_layout.addWidget(self.auto_stop_checkbox)
+        self.settings_layout.addWidget(self.simulate_rt_checkbox)
         self.settings_layout.addWidget(self.auto_range_checkbox)
         self.settings_layout.addWidget(self.file_combo_container)  # 使用容器而不是直接的combo
         self.settings_layout.addWidget(self.hint_label)
@@ -888,6 +893,12 @@ class VisualizationUI(QtCore.QObject):
             else:
                 # 回退：直接替换属性（不推荐）
                 self.runtime.audio_source = src or self.runtime.audio_source
+            # 运行前联动配置：是否模拟实时处理文件
+            try:
+                from real_time_voice_processing.config import Config as _Cfg
+                _Cfg.SIMULATE_REALTIME_FILES = bool(self.simulate_rt_checkbox.isChecked())
+            except Exception:
+                pass
             self._done_prompt_shown = False
             self.runtime.start()
             self._update_status()

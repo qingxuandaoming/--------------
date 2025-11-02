@@ -102,17 +102,18 @@ class Config:
     SPECTRAL_ENTROPY_N_FFT = 512  # 谱熵计算的 FFT 点数
     
     # 语音活动检测参数
-    ENERGY_THRESHOLD = 1000  # 能量阈值
-    ZCR_THRESHOLD = 0.3  # 过零率阈值（voiced 判定为 ZCR 较低）
+    # 调整更稳健的固定阈值（基于 int16、20ms 帧、常见语音幅度范围）
+    ENERGY_THRESHOLD = 30000000  # 能量阈值（约3e7，显著提升静音/弱噪声的过滤）
+    ZCR_THRESHOLD = 0.12  # 过零率阈值（voiced 判定为 ZCR 较低）
     
     # 自适应 VAD 参数
     ADAPTIVE_VAD_HISTORY_MIN = 20
     ADAPTIVE_VAD_ENERGY_K = 3.0
     ADAPTIVE_VAD_ZCR_K = 1.0
     # 复合VAD门控与平滑
-    USE_ADAPTIVE_VAD = True  # 在综合判定中合并自适应VAD结果
-    SPECTRAL_ENTROPY_VOICE_MAX = 0.65  # 谱熵低于该阈值更可能为语音
-    VAD_HANGOVER_ON = 3  # 进入语音后至少保持的帧数
+    USE_ADAPTIVE_VAD = False  # 默认关闭自适应VAD，避免在背景噪声下过度放宽
+    SPECTRAL_ENTROPY_VOICE_MAX = 0.55  # 谱熵低于该阈值更可能为语音
+    VAD_HANGOVER_ON = 2  # 进入语音后至少保持的帧数（减少粘连）
     VAD_RELEASE_OFF = 2  # 退出语音需连续静音帧数
     
     # 可视化参数
@@ -126,6 +127,9 @@ class Config:
     
     # 线程参数
     THREAD_SLEEP_TIME = 0.001  # 线程休眠时间（秒）
+
+    # 文件输入实时模拟（用于让离线文件按实时速率喂给引擎）
+    SIMULATE_REALTIME_FILES = False  # 关闭=快速处理；开启=按采样率节流读取
     
     # 文件保存参数
     SAVE_DIRECTORY = '.'  # 保存目录
