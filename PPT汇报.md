@@ -10,7 +10,7 @@ footer: "语音信号处理课设 · 2025 · 16kHz/20ms · GitHub: qingxuandaomi
 
 <!-- _class: lead -->
 
-# 实时语音信号处理系统
+## 实时语音信号处理系统
 
 ## 核心算法与系统实现
 
@@ -104,7 +104,7 @@ def calculate_short_time_energy(frame):
     return np.sum(frame ** 2)
 ```
 
-## 应用
+## 应用（STE）
 
 - 区分语音与静音
 - 端点检测与强度分析
@@ -126,7 +126,7 @@ def calculate_zero_crossing_rate(frame):
     return crossings / frame.size
 ```
 
-## 应用
+## 应用（ZCR）
 
 - 区分清音/浊音与噪声形态
 - 与能量联合用于端点检测
