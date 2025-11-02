@@ -34,6 +34,7 @@ class AudioSource:
 
     sample_rate: int
     channels: int
+    original_sample_rate: int
 
     def open(self) -> None:
         raise NotImplementedError
@@ -58,6 +59,7 @@ class PyAudioSource(AudioSource):
     def __init__(self, sample_rate: int, channels: int, format_const: int, frames_per_buffer: int) -> None:
         self.sample_rate = sample_rate
         self.channels = channels
+        self.original_sample_rate = int(sample_rate)
         self._format = format_const
         self._fpb = frames_per_buffer
         self._pyaudio = None
@@ -121,6 +123,7 @@ class FileAudioSource(AudioSource):
         # 在未 open 时，如果提供了目标采样率，则先暴露该值，避免运行时初始化为 0
         self.sample_rate = int(sample_rate or 0)
         self.channels = 1
+        self.original_sample_rate = 0
         # 内部缓冲（当使用整文件解码时）
         self._pcm_array: Optional[np.ndarray] = None
         self._pos = 0
@@ -140,6 +143,7 @@ class FileAudioSource(AudioSource):
             if arr.ndim == 2 and arr.shape[1] > 1:
                 arr = arr.mean(axis=1).astype(np.int16)
             self.sample_rate = int(sr)
+            self.original_sample_rate = int(sr)
             self.channels = 1
             # 重采样到目标采样率（若指定且不同）
             if self._target_sr and int(self._target_sr) != self.sample_rate:
@@ -167,6 +171,7 @@ class FileAudioSource(AudioSource):
         if len(pcm_list) == 0:
             self._pcm_array = np.array([], dtype=np.int16)
             self.sample_rate = int(self._target_sr or sr or 0)
+            self.original_sample_rate = int(sr or (self._target_sr or 0))
             self.channels = 1
         else:
             arr = np.concatenate(pcm_list)
@@ -174,6 +179,7 @@ class FileAudioSource(AudioSource):
                 # 交错布局：LRLR...，下混为单声道
                 arr = arr.reshape(-1, ch)[:, 0]
             self.sample_rate = int(sr) if sr else int(self._target_sr or 0)
+            self.original_sample_rate = int(sr or self.sample_rate)
             self.channels = 1
             if self._target_sr and int(self._target_sr) != self.sample_rate:
                 arr = _resample_to(arr, self.sample_rate, int(self._target_sr))
@@ -238,6 +244,7 @@ class PlaylistAudioSource(AudioSource):
         self._index = 0
         self.sample_rate = int(sample_rate or 0)
         self.channels = 1
+        self.original_sample_rate = int(sample_rate or 0)
         self.exhausted: bool = False
 
     def open(self) -> None:
@@ -255,6 +262,10 @@ class PlaylistAudioSource(AudioSource):
         # 统一采样率与声道数
         self.sample_rate = int(src.sample_rate or (self._target_sr or 0))
         self.channels = 1
+        try:
+            self.original_sample_rate = int(getattr(src, "original_sample_rate", src.sample_rate) or self.sample_rate)
+        except Exception:
+            self.original_sample_rate = self.sample_rate
         self._current = src
 
     def read(self, num_frames: int) -> np.ndarray:

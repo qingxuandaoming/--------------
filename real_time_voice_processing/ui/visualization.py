@@ -432,7 +432,8 @@ class VisualizationUI(QtCore.QObject):
 
         # 说明文字与 EOF 自动停止（对文件/播放列表有效）
         self.auto_stop_checkbox = QtWidgets.QCheckBox("到达文件尾自动停止")
-        self.auto_stop_checkbox.setChecked(True)
+        # 默认：麦克风模式下不相关且不勾选；初始为麦克风
+        self.auto_stop_checkbox.setChecked(False)
 
         # 模拟实时处理（文件）：开启后文件按采样率节流
         self.simulate_rt_checkbox = QtWidgets.QCheckBox("模拟实时处理（文件）")
@@ -794,6 +795,16 @@ class VisualizationUI(QtCore.QObject):
         # 使用麦克风时隐藏进度
         if self.src_mic_radio.isChecked():
             self.progress_label.setText("")
+        # 根据来源模式设定复选框默认值（仅在未运行时应用）
+        try:
+            running = bool(getattr(self.runtime, 'is_running', False))
+        except Exception:
+            running = False
+        if not running:
+            if self.src_mic_radio.isChecked():
+                # 使用麦克风测试：默认不勾选“模拟实时处理”和“到达文件尾自动停止”
+                self.simulate_rt_checkbox.setChecked(False)
+                self.auto_stop_checkbox.setChecked(False)
         # 切换到“指定路径”后，若尚未选择，立即弹出目录选择对话框
         if custom and (self._selected_dir_path is None and self._selected_file_path is None):
             self._on_choose_dir()
@@ -806,6 +817,15 @@ class VisualizationUI(QtCore.QObject):
         custom = self.src_custom_radio.isChecked()
         auto = self.src_auto_radio.isChecked()
         mic = self.src_mic_radio.isChecked()
+        # 根据测试范围设定复选框默认值（仅在未运行时应用）
+        try:
+            running = bool(getattr(self.runtime, 'is_running', False))
+        except Exception:
+            running = False
+        if not running and self.test_one_radio.isChecked():
+            # 勾选“仅测试一个”时：默认不勾选“到达文件尾自动停止”，默认勾选“模拟实时处理”
+            self.auto_stop_checkbox.setChecked(False)
+            self.simulate_rt_checkbox.setChecked(True)
         # 若选中“仅测试一个”，但当前为麦克风模式，则优先引导可用来源
         if self.test_one_radio.isChecked() and mic:
             if self.file_combo.count() == 0:

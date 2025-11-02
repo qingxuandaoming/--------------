@@ -14,6 +14,7 @@ from real_time_voice_processing.runtime.audio_source import (
     PyAudioSource,
     FileAudioSource,
     PlaylistAudioSource,
+    _resample_to,
 )
 
 
@@ -125,6 +126,10 @@ class AudioRuntime:
         self.playback_enabled: bool = False
         self._playback_pyaudio = None
         self._playback_stream = None
+        # 记录当前播放速率，便于播放列表切换时动态调整
+        self._current_play_rate: int | None = None
+        # 墙钟节流：用于文件实时模拟的下一拍时间
+        self._next_tick: float | None = None
 
     def set_audio_source(self, audio_source: AudioSource | None, auto_stop_on_eof: bool = False) -> None:
         """
@@ -235,16 +240,26 @@ class AudioRuntime:
                     and Config.SIMULATE_REALTIME_FILES
                     and isinstance(self.audio_source, (FileAudioSource, PlaylistAudioSource))
                 )
+                current_play_rate = int(self.rate)
                 if should_play:
+                    # 若配置要求跟随原始采样率，则以原始速率打开播放流
+                    try:
+                        if bool(getattr(Config, "PLAYBACK_FOLLOW_ORIGINAL_RATE", False)):
+                            orig_sr = int(getattr(self.audio_source, "original_sample_rate", 0) or 0)
+                            if orig_sr > 0:
+                                current_play_rate = orig_sr
+                    except Exception:
+                        pass
                     import pyaudio  # 局部导入
                     self._playback_pyaudio = pyaudio.PyAudio()
                     self._playback_stream = self._playback_pyaudio.open(
                         format=Config.AUDIO_FORMAT,
                         channels=1,
-                        rate=int(self.rate),
+                        rate=int(current_play_rate),
                         output=True,
                         frames_per_buffer=int(Config.CHUNK_SIZE),
                     )
+                    self._current_play_rate = int(current_play_rate)
             except Exception as _e:
                 logger.warning("打开播放流失败：%s", _e)
                 self._playback_stream = None
@@ -267,7 +282,36 @@ class AudioRuntime:
                 # 播放输出（尽量不阻塞主流程）
                 try:
                     if self._playback_stream is not None and len(audio_data) > 0:
-                        self._playback_stream.write(audio_data.tobytes())
+                        # 若播放速率与处理速率不同，先重采样到播放速率
+                        out_chunk = audio_data
+                        try:
+                            # 动态跟随播放列表中不同文件的原始采样率
+                            if bool(getattr(Config, "PLAYBACK_FOLLOW_ORIGINAL_RATE", False)):
+                                target_play_rate = int(getattr(self.audio_source, "original_sample_rate", 0) or 0)
+                                if target_play_rate <= 0:
+                                    target_play_rate = int(self.rate)
+                                # 如果播放流与目标播放速率不一致，则重建播放流
+                                if int(self._current_play_rate or target_play_rate) != int(target_play_rate):
+                                    try:
+                                        import pyaudio
+                                        self._close_playback_stream()
+                                        self._playback_pyaudio = pyaudio.PyAudio()
+                                        self._playback_stream = self._playback_pyaudio.open(
+                                            format=Config.AUDIO_FORMAT,
+                                            channels=1,
+                                            rate=int(target_play_rate),
+                                            output=True,
+                                            frames_per_buffer=int(Config.CHUNK_SIZE),
+                                        )
+                                        self._current_play_rate = int(target_play_rate)
+                                    except Exception as _reopen_e:
+                                        logger.warning("重建播放流失败：%s", _reopen_e)
+                                # 如处理速率与播放速率不同，重采样 chunk
+                                if int(target_play_rate) != int(self.rate):
+                                    out_chunk = _resample_to(audio_data, int(self.rate), int(target_play_rate))
+                        except Exception:
+                            out_chunk = audio_data
+                        self._playback_stream.write(out_chunk.tobytes())
                 except Exception:
                     # 播放失败不影响处理
                     pass
@@ -276,10 +320,21 @@ class AudioRuntime:
                     if Config.SIMULATE_REALTIME_FILES and isinstance(
                         self.audio_source, (FileAudioSource, PlaylistAudioSource)
                     ):
-                        # 每块持续时间 = 样本数 / 采样率
-                        block_seconds = float(len(audio_data)) / float(max(1, self.rate))
+                        # 目标节流速率：播放开启且跟随原速 → 用原始采样率；否则用处理采样率
+                        target_rate = int(self.rate)
+                        if self._playback_stream is not None and bool(getattr(Config, "PLAYBACK_FOLLOW_ORIGINAL_RATE", False)):
+                            target_rate = int(getattr(self.audio_source, "original_sample_rate", self.rate) or self.rate)
+                        block_seconds = float(len(audio_data)) / float(max(1, target_rate))
                         if block_seconds > 0:
-                            time.sleep(block_seconds)
+                            # 若已开启播放，避免与播放双重节流；改用墙钟“下一拍”调度以减小抖动
+                            now = time.perf_counter()
+                            if self._next_tick is None:
+                                self._next_tick = now + block_seconds
+                            else:
+                                self._next_tick += block_seconds
+                            sleep_dur = float(self._next_tick - now)
+                            if sleep_dur > 0:
+                                time.sleep(sleep_dur)
                 except Exception:
                     # 节流失败不应影响主流程
                     pass
@@ -299,6 +354,8 @@ class AudioRuntime:
                 self._close_playback_stream()
             except Exception:
                 pass
+            # 重置墙钟
+            self._next_tick = None
 
     def _signal_processing_thread(self):
         """
@@ -436,6 +493,7 @@ class AudioRuntime:
                     pass
             self._playback_stream = None
             self._playback_pyaudio = None
+            self._current_play_rate = None
 
     def get_recent_audio(self):
         """

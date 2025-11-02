@@ -141,6 +141,8 @@ class Config:
     
     # 文件保存参数
     SAVE_DIRECTORY = '.'  # 保存目录
+    # 播放速度：是否跟随原始采样率播放（处理仍按 SAMPLE_RATE）。
+    PLAYBACK_FOLLOW_ORIGINAL_RATE = True
     
     # 日志配置
     LOG_LEVEL = 'INFO'
