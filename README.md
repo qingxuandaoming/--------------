@@ -12,6 +12,28 @@
 - **实时可视化**：使用PyQtGraph实现动态图表显示
 - **语音活动检测**：基于能量和过零率的双门限检测算法
 
+## 快速开始（推荐虚拟环境）
+
+```powershell
+# Windows（PowerShell）
+py -3.10 -m venv .venv
+./.venv/Scripts/Activate.ps1
+pip install -r real_time_voice_processing\requirements.txt
+```
+
+```bash
+# Linux/macOS（bash/zsh）
+python3.10 -m venv .venv
+source .venv/bin/activate
+pip install -r real_time_voice_processing/requirements.txt
+```
+
+启动主程序：
+
+```bash
+python -m real_time_voice_processing.main
+```
+
 ## 系统架构
 
 ```text
@@ -160,6 +182,11 @@ py -3.10 -m real_time_voice_processing.main
 - **音频参数**：采样率、帧长、帧移等
 - **算法参数**：能量阈值、过零率阈值等
 - **界面参数**：更新频率、显示范围等
+
+补充说明：
+
+- **VAD 判据（固定阈值）**：当能量高于阈值且过零率低于阈值判定为“有声”。
+- **默认阈值**：`ENERGY_THRESHOLD=1000`、`ZCR_THRESHOLD=0.25`（可在 `config.py` 或环境变量中调整）。
 
 ### 数据保存与清理
 
@@ -324,6 +351,13 @@ sphinx-build -b html docs docs/_build/html
 ```
 
 - 打开 `docs/_build/html/index.html` 浏览完整说明与 API 文档。
+
+## 算法原理要点（LaTeX）
+
+- 短时能量（STE）：$E_n = \sum_{m=0}^{M-1} x^2[m] \cdot w^2[m]$
+- 过零率（ZCR）：$Z_n = \frac{1}{2M} \sum_{m=1}^{M-1} |\operatorname{sgn}(x[m]) - \operatorname{sgn}(x[m-1])| \cdot w[m]$
+- 固定阈值 VAD 判据：$\text{VAD}_n = (E_n> E_{th}) \land (Z_n < Z_{th})$
+- 自适应 VAD（简述）：能量门限基于历史分位数与安全边际，ZCR 采用区间外判决（低/高皆可能为语音），细节参见 `docs/算法说明.md` 与 `real_time_voice_processing/signal_processing/vad.py`。
 
 ## 参考文献
 

@@ -24,7 +24,7 @@
 
 ### 系统架构设计
 
-```
+```text
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   音频采集线程   │    │   信号处理线程   │    │   可视化线程    │
 │  (Producer)     │───>│  (Consumer)     │───>│  (Consumer)     │
@@ -97,27 +97,28 @@ def calculate_zero_crossing_rate(frame):
 2. **第二级判决**：过零率检测
 
    ```python
-   if zcr > zcr_threshold:
+   if zcr < zcr_threshold:
        return 1  # 语音
    return 0  # 静音
+   ```
 
 形式化描述：
 
 \[\mathrm{VAD}(i) = \begin{cases}
-1, & E(i) > T_E \,\land\, \mathrm{ZCR}(i) > T_Z \\
+1, & E(i) > T_E \,\land\, \mathrm{ZCR}(i) < T_Z \\
 0, & \text{otherwise}
 \end{cases}\]
-
-   ```
 
 ### 算法性能优化
 
 **实时性优化：**
+
 - 向量化计算：使用NumPy加速
 - 多线程并行：分离采集、处理、显示
 - 缓冲区管理：循环缓冲区减少延迟
 
 **计算复杂度：**
+
 - 短时能量：O(N)
 - 过零率：O(N)
 - 总体复杂度：O(N)
@@ -135,6 +136,7 @@ def calculate_zero_crossing_rate(frame):
 | 嘈杂环境 | 87.8% | 85.3% | 86.5% |
 
 **实时性能：**
+
 - 总延迟：<120ms
 - CPU占用：<15%
 - 内存占用：<100MB
@@ -144,12 +146,14 @@ def calculate_zero_crossing_rate(frame):
 ### 系统演示
 
 **主要功能：**
+
 1. 实时波形显示
 2. 能量变化趋势
 3. 过零率动态展示
 4. 语音检测结果
 
 **操作说明：**
+
 - 点击"开始处理"启动系统
 - 点击"停止处理"停止运行
 - 点击"保存数据"保存结果
@@ -159,11 +163,13 @@ def calculate_zero_crossing_rate(frame):
 ### 总结与展望
 
 **主要成果：**
+
 - 实现了完整的实时语音处理系统
 - 掌握了核心算法的原理和实现
 - 验证了系统的实时性和稳定性
 
 **未来改进：**
+
 - 集成深度学习算法
 - 提升噪声鲁棒性
 - 扩展语音识别功能
