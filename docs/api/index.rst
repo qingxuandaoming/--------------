@@ -7,4 +7,5 @@ API 索引
    signal_processing
    runtime_engine
    ui_visualization
+   audio_source
    config

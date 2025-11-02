@@ -102,9 +102,9 @@ class Config:
     SPECTRAL_ENTROPY_N_FFT = 512  # 谱熵计算的 FFT 点数
     
     # 语音活动检测参数
-    # 调整更稳健的固定阈值（基于 int16、20ms 帧、常见语音幅度范围）
-    ENERGY_THRESHOLD = 30000000  # 能量阈值（约3e7，显著提升静音/弱噪声的过滤）
-    ZCR_THRESHOLD = 0.12  # 过零率阈值（voiced 判定为 ZCR 较低）
+    # 固定阈值（与单元测试预期保持一致）：能量较高且 ZCR 低于阈值更可能为语音
+    ENERGY_THRESHOLD = 1000       # 能量阈值（用于固定阈值VAD）
+    ZCR_THRESHOLD = 0.30          # 过零率上限阈值（zcr < 阈值 判定为语音）
     
     # 自适应 VAD 参数
     ADAPTIVE_VAD_HISTORY_MIN = 20

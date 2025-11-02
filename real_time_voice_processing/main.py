@@ -16,6 +16,19 @@ from real_time_voice_processing.runtime.audio_source import FileAudioSource, Pla
 
 
 def main():
+    """
+    程序入口：初始化配置与可视化界面并启动运行。
+
+    执行步骤：
+    1) 初始化日志、从 YAML 与环境变量加载配置。
+    2) 选择并构造音频源（麦克风 / 文件 / 播放列表）。
+    3) 设置 Qt 插件路径并创建可视化 UI。
+    4) 运行事件循环。
+
+    Returns
+    -------
+    None
+    """
     # 初始化日志并加载配置（环境变量优先，YAML 可选）
     Config.setup_logging()
     yaml_path = os.environ.get("RTP_CONFIG_YAML")
@@ -54,7 +67,15 @@ def main():
 
 
 def _default_audio_dir() -> str:
-    """默认测试音频目录：real_time_voice_processing/assets/audio_tests"""
+    """
+    获取默认测试音频目录。
+
+    Returns
+    -------
+    str
+        目录路径：`real_time_voice_processing/assets/audio_tests` 的绝对路径，
+        若目录不存在则会创建。
+    """
     pkg_dir = os.path.dirname(os.path.abspath(__file__))
     d = os.path.join(pkg_dir, "assets", "audio_tests")
     os.makedirs(d, exist_ok=True)
@@ -62,6 +83,19 @@ def _default_audio_dir() -> str:
 
 
 def _collect_audio_files(directory: str) -> List[str]:
+    """
+    收集目标目录下支持的音频文件。
+
+    Parameters
+    ----------
+    directory : str
+        要扫描的目录路径。
+
+    Returns
+    -------
+    list[str]
+        按文件名排序的绝对路径列表，仅包含支持的扩展名。
+    """
     exts = {e.lower() for e in SUPPORTED_EXTENSIONS}
     files: List[str] = []
     if not os.path.isdir(directory):
@@ -78,10 +112,16 @@ def _collect_audio_files(directory: str) -> List[str]:
 
 def _interactive_choose_audio_source():
     """
-    在启动前进行简单的交互式选择：
-    - 指定路径（文件/目录）或自动测试（默认选择自动测试，扫描默认目录）
-    - 若为目录：选择测试全部或测试一个（默认全部）
-    返回构造好的音频源，若无可用文件则返回 None（使用麦克风）。
+    启动前进行交互式选择并构造音频源。
+
+    交互流程：
+    - 选择自动扫描默认目录或指定路径（文件/目录）。
+    - 若选择目录，可选择测试全部或仅测试一个文件。
+
+    Returns
+    -------
+    FileAudioSource | PlaylistAudioSource | None
+        构造完成的音频源；若未找到可用文件则返回 `None`（使用麦克风）。
     """
     try:
         default_dir = _default_audio_dir()
@@ -142,7 +182,18 @@ def _interactive_choose_audio_source():
 
 
 def _ensure_qt_plugins_env() -> None:
-    """在 Windows 环境下设置 Qt 插件路径，避免找不到 platform plugin。"""
+    """
+    在 Windows 环境下设置 Qt 插件路径以提升稳健性。
+
+    Notes
+    -----
+    - 优先设置 PySide6 的插件路径；若不可用则尝试 PyQt5。
+    - 设置 `QT_QPA_PLATFORM_PLUGIN_PATH` 与 `QT_PLUGIN_PATH` 环境变量。
+
+    Returns
+    -------
+    None
+    """
     if sys.platform.startswith("win"):
         # 优先尝试 PySide6 的插件路径（wheel 包内置完整 Qt）
         if not os.environ.get("QT_QPA_PLATFORM_PLUGIN_PATH"):

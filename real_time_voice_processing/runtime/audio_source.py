@@ -30,19 +30,55 @@ SUPPORTED_EXTENSIONS = {
 
 
 class AudioSource:
-    """音频源基类接口。"""
+    """
+    音频源基类接口。
+
+    提供统一的打开、读取与关闭接口，供运行时引擎进行音频采集。
+
+    Notes
+    -----
+    具体实现需保证返回的音频数据为 `numpy.ndarray`，数据类型为 `int16`，
+    单声道布局（若为多声道实现，应在内部进行下混）。
+    """
 
     sample_rate: int
     channels: int
     original_sample_rate: int
 
     def open(self) -> None:
+        """
+        打开底层音频资源。
+
+        Returns
+        -------
+        None
+        """
         raise NotImplementedError
 
     def read(self, num_frames: int) -> np.ndarray:
+        """
+        读取指定样本数的音频数据。
+
+        Parameters
+        ----------
+        num_frames : int
+            期望读取的样本点数量（单声道）。
+
+        Returns
+        -------
+        numpy.ndarray
+            一维 `int16` 数组；若资源已耗尽或暂不可用，返回长度为 0 的数组。
+        """
         raise NotImplementedError
 
     def close(self) -> None:
+        """
+        关闭并释放底层音频资源。
+
+        Returns
+        -------
+        None
+        """
         raise NotImplementedError
 
 
@@ -66,6 +102,13 @@ class PyAudioSource(AudioSource):
         self._stream = None
 
     def open(self) -> None:
+        """
+        打开麦克风输入流。
+
+        Returns
+        -------
+        None
+        """
         import pyaudio  # 局部导入，降低模块级依赖
 
         self._pyaudio = pyaudio.PyAudio()
@@ -78,11 +121,31 @@ class PyAudioSource(AudioSource):
         )
 
     def read(self, num_frames: int) -> np.ndarray:
+        """
+        从麦克风读取指定样本数。
+
+        Parameters
+        ----------
+        num_frames : int
+            期望读取的样本点数量。
+
+        Returns
+        -------
+        numpy.ndarray
+            一维 `int16` 数组；若发生溢出将抑制异常并尽量返回数据。
+        """
         assert self._stream is not None, "PyAudioSource 未打开"
         data = self._stream.read(num_frames, exception_on_overflow=False)
         return np.frombuffer(data, dtype=np.int16)
 
     def close(self) -> None:
+        """
+        关闭输入流并终止 PyAudio。
+
+        Returns
+        -------
+        None
+        """
         try:
             if self._stream:
                 self._stream.stop_stream()
@@ -132,6 +195,16 @@ class FileAudioSource(AudioSource):
         self.exhausted: bool = False
 
     def open(self) -> None:
+        """
+        打开并解码音频文件为单声道 `int16` PCM。
+
+        - 优先使用 `soundfile` 一次性读取；不支持格式时回退到 `audioread`。
+        - 若设置了目标采样率 `sample_rate` 且与文件采样率不同，将重采样。
+
+        Returns
+        -------
+        None
+        """
         self.exhausted = False
         # 优先尝试 soundfile 读取
         try:
@@ -189,6 +262,19 @@ class FileAudioSource(AudioSource):
         self._using_sf_stream = False
 
     def read(self, num_frames: int) -> np.ndarray:
+        """
+        读取文件的下一个音频片段。
+
+        Parameters
+        ----------
+        num_frames : int
+            期望读取的样本点数量。
+
+        Returns
+        -------
+        numpy.ndarray
+            一维 `int16` 数组；若到达 EOF 返回长度为 0 的数组，并设置 `exhausted=True`。
+        """
         # 内存缓冲读取（推荐路径）
         if self._pcm_array is not None:
             start = self._pos
@@ -215,6 +301,13 @@ class FileAudioSource(AudioSource):
         return arr
 
     def close(self) -> None:
+        """
+        关闭文件资源并清理内部状态。
+
+        Returns
+        -------
+        None
+        """
         try:
             if self._sf:
                 self._sf.close()
@@ -248,6 +341,13 @@ class PlaylistAudioSource(AudioSource):
         self.exhausted: bool = False
 
     def open(self) -> None:
+        """
+        打开播放列表并定位到第一个文件。
+
+        Returns
+        -------
+        None
+        """
         self._index = 0
         self.exhausted = False
         self._open_current()
@@ -269,6 +369,19 @@ class PlaylistAudioSource(AudioSource):
         self._current = src
 
     def read(self, num_frames: int) -> np.ndarray:
+        """
+        从当前文件读取音频数据；若该文件耗尽，自动切换到下一个文件。
+
+        Parameters
+        ----------
+        num_frames : int
+            期望读取的样本点数量。
+
+        Returns
+        -------
+        numpy.ndarray
+            一维 `int16` 数组；当整个列表耗尽时返回长度为 0 的数组，并设置 `exhausted=True`。
+        """
         if self._current is None:
             self.exhausted = True
             return np.array([], dtype=np.int16)
@@ -286,6 +399,13 @@ class PlaylistAudioSource(AudioSource):
         return chunk
 
     def close(self) -> None:
+        """
+        关闭当前文件并重置播放列表状态。
+
+        Returns
+        -------
+        None
+        """
         if self._current:
             self._current.close()
         self._current = None
@@ -294,7 +414,23 @@ class PlaylistAudioSource(AudioSource):
 
 
 def _resample_to(arr: np.ndarray, src_sr: int, dst_sr: int) -> np.ndarray:
-    """使用 polyphase 方法重采样至目标采样率，并返回 int16。"""
+    """
+    使用 polyphase 方法将 PCM 重采样至目标采样率。
+
+    Parameters
+    ----------
+    arr : numpy.ndarray
+        输入 PCM 数据，一维数组，类型可为 `int16` 或浮点。
+    src_sr : int
+        原始采样率。
+    dst_sr : int
+        目标采样率。
+
+    Returns
+    -------
+    numpy.ndarray
+        重采样后的 PCM 数据，一维 `int16` 数组。
+    """
     import scipy.signal as sps  # 局部导入减少模块级依赖
     if src_sr == dst_sr:
         return arr.astype(np.int16, copy=False)

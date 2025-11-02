@@ -14,7 +14,7 @@
 
 ## 系统架构
 
-```
+```text
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   音频采集线程   │    │   信号处理线程   │    │   可视化线程    │
 │  (Producer)     │───>│  (Consumer)     │───>│  (Consumer)     │
@@ -75,7 +75,7 @@ pwsh ./scripts/setup_venv.ps1
 # Linux/macOS（bash/zsh）
 python3.10 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r real_time_voice_processing/requirements.txt
 ```
 
 ### 注意事项
@@ -202,7 +202,7 @@ $$
 
 $$
 \mathrm{VAD}(i) = \begin{cases}
-1, & E(i) > T_E \;\land\; \mathrm{ZCR}(i) > T_Z \\
+1, & E(i) > T_E \;\land\; \mathrm{ZCR}(i) < T_Z \\
 0, & \text{otherwise}
 \end{cases}
 $$
@@ -254,30 +254,44 @@ pytest
 
 ## 项目结构
 
-```
-real_time_voice_processing/
-├── main.py                  # 入口文件（调用 runtime 与 ui）
-├── signal_processing/       # 信号处理算法子包（模块化实现）
-│   ├── __init__.py          # 聚合类 SignalProcessing（兼容旧 API）
-│   ├── windows.py           # 窗函数
-│   ├── preprocessing.py     # 预加重与分帧
-│   ├── time_features.py     # 时域特征
-│   ├── frequency_features.py# 频域特征（Mel、MFCC、谱熵）
-│   └── vad.py               # 固定/自适应 VAD
-├── config.py                # 配置文件
-├── runtime/
-│   └── engine.py           # 运行时音频采集与处理（线程控制）
-├── ui/
-│   └── visualization.py    # 可视化界面与交互控件
+```text
+.
+├── docs/                          # 文档（Sphinx + Markdown）
+│   ├── api/
+│   ├── conf.py
+│   ├── index.rst
+│   ├── 常见问题.md
+│   ├── 开发指南.md
+│   ├── 架构说明.md
+│   └── 算法说明.md
+├── real_time_voice_processing/     # 包源代码与包内文档
+│   ├── README.md
+│   ├── __init__.py
+│   ├── config.py
+│   ├── main.py
+│   ├── requirements.txt            # 依赖清单（包内）
+│   ├── runtime/
+│   │   ├── engine.py               # 运行时音频采集与处理（线程控制）
+│   │   └── audio_source.py         # 音频输入源抽象与实现
+│   ├── signal_processing/
+│   │   ├── __init__.py             # 聚合类 SignalProcessing（兼容旧 API）
+│   │   ├── windows.py              # 窗函数
+│   │   ├── preprocessing.py        # 预加重与分帧
+│   │   ├── time_features.py        # 时域特征
+│   │   ├── frequency_features.py   # 频域特征（Mel、MFCC、谱熵）
+│   │   └── vad.py                  # 固定/自适应 VAD
+│   ├── ui/
+│   │   └── visualization.py        # 可视化界面与交互控件
+│   ├── demo.py                     # 演示脚本
+│   └── analyze_file.py             # 单文件分析工具
+├── scripts/
+│   └── setup_venv.ps1              # Windows 快速创建虚拟环境脚本
 ├── tests/
-│   └── test_signal_processing.py  # 基于 pytest 的算法单元测试
-├── docs/
-│   ├── 开发指南.md                # 开发与贡献指南
-│   ├── 架构说明.md                # 系统架构与数据流程
-│   ├── 算法说明.md                # 公式与算法细节（LaTeX）
-│   └── 常见问题.md                # FAQ 与故障排除
-├── README.md                # 项目说明文档
-└── requirements.txt         # 依赖包列表
+│   ├── test_runtime_engine.py
+│   └── test_signal_processing.py
+├── pyproject.toml                   # 构建配置与工具配置
+├── Makefile                         # 构建脚本（跨平台，仓库根）
+└── 语音信号处理课设.docx
 ```
 
 ## 文档构建（Sphinx）
